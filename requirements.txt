@@ -3,4 +3,3 @@ requests
 pillow
 python-dotenv
 cloudinary
-apscheduler

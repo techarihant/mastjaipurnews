@@ -8,7 +8,6 @@ import cloudinary.uploader
 from PIL import Image, ImageDraw, ImageFont
 from dotenv import load_dotenv
 from openai import OpenAI
-from apscheduler.schedulers.blocking import BlockingScheduler
 
 # =====================================================
 # LOAD ENV
@@ -47,43 +46,103 @@ cloudinary.config(
 # =====================================================
 
 # =====================================================
-# FETCH NEWS
+# FETCH MULTIPLE NEWS SOURCES
 # =====================================================
 
 def fetch_news():
 
-    GNEWS_API_KEY = os.getenv("GNEWS_API_KEY")
+    articles = []
 
-    url = (
-        f"https://gnews.io/api/v4/search?"
-        f'q=Jaipur OR Rajasthan'
-        f"&lang=en"
-        f"&max=10"
-        f"&apikey={GNEWS_API_KEY}"
-    )
+    # =================================================
+    # GNEWS
+    # =================================================
 
-    response = requests.get(url)
+    try:
 
-    data = response.json()
+        GNEWS_API_KEY = os.getenv("GNEWS_API_KEY")
 
-    articles = data.get("articles", [])
+        gnews_url = (
+            f"https://gnews.io/api/v4/search?"
+            f'q=Jaipur OR Rajasthan'
+            f"&lang=en"
+            f"&max=10"
+            f"&apikey={GNEWS_API_KEY}"
+        )
 
-    if not articles:
-        raise Exception("No news found")
+        response = requests.get(gnews_url)
 
-    # FIND FIRST NON-DUPLICATE ARTICLE
+        data = response.json()
+
+        for article in data.get("articles", []):
+
+            articles.append({
+                "title": article["title"],
+                "description": article.get("description", "")
+            })
+
+    except Exception as e:
+        print("GNews Error:", e)
+
+    # =================================================
+    # NEWS API
+    # =================================================
+
+    try:
+
+        newsapi_key = os.getenv("NEWS_API_KEY")
+
+        newsapi_url = (
+            f"https://newsapi.org/v2/everything?"
+            f'q=Jaipur OR Rajasthan'
+            f"&language=en"
+            f"&pageSize=10"
+            f"&sortBy=publishedAt"
+            f"&apiKey={newsapi_key}"
+        )
+
+        response = requests.get(newsapi_url)
+
+        data = response.json()
+
+        for article in data.get("articles", []):
+
+            articles.append({
+                "title": article["title"],
+                "description": article.get("description", "")
+            })
+
+    except Exception as e:
+        print("NewsAPI Error:", e)
+
+    # =================================================
+    # REMOVE DUPLICATES
+    # =================================================
+
+    unique_articles = []
+
+    seen_titles = set()
+
     for article in articles:
 
-        title = article["title"]
+        title = article["title"].strip().lower()
 
-        if not already_posted(title):
+        if title not in seen_titles:
 
-            return {
-                "title": title,
-                "description": article.get("description", "")
-            }
+            seen_titles.add(title)
 
-    raise Exception("No new news available")
+            unique_articles.append(article)
+
+    # =================================================
+    # FIND NON-POSTED ARTICLE
+    # =================================================
+
+    for article in unique_articles:
+
+        if not already_posted(article["title"]):
+
+            return article
+
+    raise Exception("No New Unique News Found")
 
 # =====================================================
 # AI CONTENT GENERATION
@@ -362,21 +421,7 @@ def run_automation():
     print("✅ News Saved")
 
 # =====================================================
-# AUTO SCHEDULER
+# RUN
 # =====================================================
 
-scheduler = BlockingScheduler()
-
-# RUN EVERY 2 HOURS
-scheduler.add_job(
-    run_automation,
-    'interval',
-    hours=2
-)
-
-print("🚀 Auto Posting Started (Every 2 Hours)")
-
-# FIRST RUN
 run_automation()
-
-scheduler.start()
