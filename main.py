@@ -6,6 +6,7 @@ import cloudinary
 import cloudinary.uploader
 import feedparser
 import re
+import random
 
 from PIL import Image, ImageDraw, ImageFont
 from dotenv import load_dotenv
@@ -19,8 +20,8 @@ load_dotenv()
 
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 NEWS_API_KEY = os.getenv("NEWS_API_KEY")
+GNEWS_API_KEY = os.getenv("GNEWS_API_KEY")
 
-FACEBOOK_PAGE_ID = os.getenv("FACEBOOK_PAGE_ID")
 
 INSTAGRAM_ACCESS_TOKEN = os.getenv("INSTAGRAM_ACCESS_TOKEN")
 INSTAGRAM_BUSINESS_ID = os.getenv("INSTAGRAM_BUSINESS_ID")
@@ -46,11 +47,7 @@ cloudinary.config(
 )
 
 # =====================================================
-# FETCH NEWS
-# =====================================================
-
-# =====================================================
-# FETCH MULTIPLE NEWS SOURCES
+# CLEAN TITLE
 # =====================================================
 
 def clean_title(title):
@@ -64,6 +61,8 @@ def clean_title(title):
     return title.strip()
 
 # =====================================================
+# FETCH NEWS
+# =====================================================
 
 def fetch_news():
 
@@ -74,8 +73,6 @@ def fetch_news():
     # =================================================
 
     try:
-
-        GNEWS_API_KEY = os.getenv("GNEWS_API_KEY")
 
         gnews_url = (
             f"https://gnews.io/api/v4/search?"
@@ -105,15 +102,13 @@ def fetch_news():
 
     try:
 
-        newsapi_key = os.getenv("NEWS_API_KEY")
-
         newsapi_url = (
             f"https://newsapi.org/v2/everything?"
             f'q=Jaipur OR Rajasthan'
             f"&language=en"
             f"&pageSize=10"
             f"&sortBy=publishedAt"
-            f"&apiKey={newsapi_key}"
+            f"&apiKey={NEWS_API_KEY}"
         )
 
         response = requests.get(newsapi_url)
@@ -187,7 +182,7 @@ def fetch_news():
 
         cleaned = clean_title(article["title"])
 
-        # SKIP VERY SHORT TITLES
+        # SKIP SHORT TITLES
         if len(cleaned) < 20:
             continue
 
@@ -195,7 +190,6 @@ def fetch_news():
 
         for seen in seen_titles:
 
-            # SIMILARITY CHECK
             if cleaned[:40] == seen[:40]:
 
                 duplicate = True
@@ -208,10 +202,8 @@ def fetch_news():
             unique_articles.append(article)
 
     # =================================================
-    # SHUFFLE FOR MORE VARIETY
+    # SHUFFLE ARTICLES
     # =================================================
-
-    import random
 
     random.shuffle(unique_articles)
 
@@ -410,28 +402,6 @@ def post_instagram(image_url, caption):
     print("✅ Posted Successfully")
     print(publish_response.json())
 
-
-# =====================================================
-# FACEBOOK POST
-# =====================================================
-
-def post_facebook(image_url, caption):
-
-    url = f"https://graph.facebook.com/v22.0/{FACEBOOK_PAGE_ID}/photos"
-
-    payload = {
-        "url": image_url,
-        "caption": caption,
-        "access_token": INSTAGRAM_ACCESS_TOKEN
-    }
-
-    response = requests.post(
-        url,
-        data=payload
-    )
-
-    print("✅ Posted on Facebook")
-    print(response.json())post_instagram(image_url, caption)
 # =====================================================
 # DUPLICATE CHECK
 # =====================================================
@@ -446,9 +416,12 @@ def already_posted(title):
 
     cleaned = clean_title(title)
 
-posted_cleaned = [clean_title(p) for p in posted]
+    posted_cleaned = [
+        clean_title(p)
+        for p in posted
+    ]
 
-return cleaned in posted_cleaned
+    return cleaned in posted_cleaned
 
 # =====================================================
 # SAVE POSTED NEWS
@@ -524,7 +497,7 @@ def run_automation():
     # POST INSTAGRAM
     post_instagram(image_url, caption)
 
-    post_facebook(image_url, caption)
+  
 
     # SAVE POSTED NEWS
     save_posted_news(news["title"])
