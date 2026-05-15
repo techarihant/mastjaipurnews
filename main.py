@@ -20,6 +20,8 @@ load_dotenv()
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 NEWS_API_KEY = os.getenv("NEWS_API_KEY")
 
+FACEBOOK_PAGE_ID = os.getenv("FACEBOOK_PAGE_ID")
+
 INSTAGRAM_ACCESS_TOKEN = os.getenv("INSTAGRAM_ACCESS_TOKEN")
 INSTAGRAM_BUSINESS_ID = os.getenv("INSTAGRAM_BUSINESS_ID")
 
@@ -408,6 +410,28 @@ def post_instagram(image_url, caption):
     print("✅ Posted Successfully")
     print(publish_response.json())
 
+
+# =====================================================
+# FACEBOOK POST
+# =====================================================
+
+def post_facebook(image_url, caption):
+
+    url = f"https://graph.facebook.com/v22.0/{FACEBOOK_PAGE_ID}/photos"
+
+    payload = {
+        "url": image_url,
+        "caption": caption,
+        "access_token": INSTAGRAM_ACCESS_TOKEN
+    }
+
+    response = requests.post(
+        url,
+        data=payload
+    )
+
+    print("✅ Posted on Facebook")
+    print(response.json())post_instagram(image_url, caption)
 # =====================================================
 # DUPLICATE CHECK
 # =====================================================
@@ -499,6 +523,8 @@ def run_automation():
 
     # POST INSTAGRAM
     post_instagram(image_url, caption)
+
+    post_facebook(image_url, caption)
 
     # SAVE POSTED NEWS
     save_posted_news(news["title"])

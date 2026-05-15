@@ -58,6 +58,7 @@ jobs:
 
       - name: Run Bot
         env:
+        FACEBOOK_PAGE_ID: ${{ secrets.FACEBOOK_PAGE_ID }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           GNEWS_API_KEY: ${{ secrets.GNEWS_API_KEY }}
           NEWS_API_KEY: ${{ secrets.NEWS_API_KEY }}
