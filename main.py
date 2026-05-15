@@ -4,6 +4,8 @@ import requests
 import textwrap
 import cloudinary
 import cloudinary.uploader
+import feedparser
+import re
 
 from PIL import Image, ImageDraw, ImageFont
 from dotenv import load_dotenv
@@ -47,6 +49,18 @@ cloudinary.config(
 
 # =====================================================
 # FETCH MULTIPLE NEWS SOURCES
+# =====================================================
+
+def clean_title(title):
+
+    title = title.lower()
+
+    title = re.sub(r'[^a-zA-Z0-9 ]', '', title)
+
+    title = re.sub(r'\s+', ' ', title)
+
+    return title.strip()
+
 # =====================================================
 
 def fetch_news():
@@ -115,6 +129,51 @@ def fetch_news():
         print("NewsAPI Error:", e)
 
     # =================================================
+    # GOOGLE NEWS RSS
+    # =================================================
+
+    try:
+
+        rss_url = (
+            "https://news.google.com/rss/search?"
+            "q=Jaipur+Rajasthan&hl=en-IN&gl=IN&ceid=IN:en"
+        )
+
+        feed = feedparser.parse(rss_url)
+
+        for entry in feed.entries[:10]:
+
+            articles.append({
+                "title": entry.title,
+                "description": ""
+            })
+
+    except Exception as e:
+        print("Google RSS Error:", e)
+
+    # =================================================
+    # DAINIK BHASKAR RSS
+    # =================================================
+
+    try:
+
+        bhaskar_rss = (
+            "https://www.bhaskar.com/rss-v1--category-1998.xml"
+        )
+
+        feed = feedparser.parse(bhaskar_rss)
+
+        for entry in feed.entries[:10]:
+
+            articles.append({
+                "title": entry.title,
+                "description": ""
+            })
+
+    except Exception as e:
+        print("Bhaskar RSS Error:", e)
+
+    # =================================================
     # REMOVE DUPLICATES
     # =================================================
 
@@ -124,13 +183,35 @@ def fetch_news():
 
     for article in articles:
 
-        title = article["title"].strip().lower()
+        cleaned = clean_title(article["title"])
 
-        if title not in seen_titles:
+        # SKIP VERY SHORT TITLES
+        if len(cleaned) < 20:
+            continue
 
-            seen_titles.add(title)
+        duplicate = False
+
+        for seen in seen_titles:
+
+            # SIMILARITY CHECK
+            if cleaned[:40] == seen[:40]:
+
+                duplicate = True
+                break
+
+        if not duplicate:
+
+            seen_titles.add(cleaned)
 
             unique_articles.append(article)
+
+    # =================================================
+    # SHUFFLE FOR MORE VARIETY
+    # =================================================
+
+    import random
+
+    random.shuffle(unique_articles)
 
     # =================================================
     # FIND NON-POSTED ARTICLE
@@ -339,7 +420,11 @@ def already_posted(title):
     with open("posted_news.txt", "r") as file:
         posted = file.read().splitlines()
 
-    return title in posted
+    cleaned = clean_title(title)
+
+posted_cleaned = [clean_title(p) for p in posted]
+
+return cleaned in posted_cleaned
 
 # =====================================================
 # SAVE POSTED NEWS
