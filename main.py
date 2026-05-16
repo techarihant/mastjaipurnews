@@ -78,7 +78,7 @@ def fetch_news():
             f"https://gnews.io/api/v4/search?"
             f'q=Jaipur OR Rajasthan'
             f"&lang=en"
-            f"&max=10"
+            f"&max=25"
             f"&apikey={GNEWS_API_KEY}"
         )
 
@@ -133,12 +133,12 @@ def fetch_news():
 
         rss_url = (
             "https://news.google.com/rss/search?"
-            "q=Jaipur+Rajasthan&hl=en-IN&gl=IN&ceid=IN:en"
+            "q=Jaipur+OR+Rajasthan+crime+OR+business+OR+events+OR+tourism+OR+viral&hl=en-IN&gl=IN&ceid=IN:en"
         )
 
         feed = feedparser.parse(rss_url)
 
-        for entry in feed.entries[:10]:
+        for entry in feed.entries[:25]:
 
             articles.append({
                 "title": entry.title,
@@ -160,7 +160,7 @@ def fetch_news():
 
         feed = feedparser.parse(bhaskar_rss)
 
-        for entry in feed.entries[:10]:
+        for entry in feed.entries[:25]:
 
             articles.append({
                 "title": entry.title,
