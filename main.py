@@ -7,7 +7,10 @@ import cloudinary.uploader
 import feedparser
 import re
 import random
+import time
+import traceback
 
+from datetime import datetime
 from PIL import Image, ImageDraw, ImageFont
 from dotenv import load_dotenv
 from openai import OpenAI
@@ -22,13 +25,22 @@ OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 NEWS_API_KEY = os.getenv("NEWS_API_KEY")
 GNEWS_API_KEY = os.getenv("GNEWS_API_KEY")
 
-
 INSTAGRAM_ACCESS_TOKEN = os.getenv("INSTAGRAM_ACCESS_TOKEN")
 INSTAGRAM_BUSINESS_ID = os.getenv("INSTAGRAM_BUSINESS_ID")
 
 CLOUDINARY_CLOUD_NAME = os.getenv("CLOUDINARY_CLOUD_NAME")
 CLOUDINARY_API_KEY = os.getenv("CLOUDINARY_API_KEY")
 CLOUDINARY_API_SECRET = os.getenv("CLOUDINARY_API_SECRET")
+
+# =====================================================
+# LOGGER
+# =====================================================
+
+def log(message):
+
+    current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+    print(f"[{current_time}] {message}")
 
 # =====================================================
 # OPENAI
@@ -66,6 +78,8 @@ def clean_title(title):
 
 def fetch_news():
 
+    log("🌍 Fetching News From Multiple Sources")
+
     articles = []
 
     # =================================================
@@ -73,6 +87,8 @@ def fetch_news():
     # =================================================
 
     try:
+
+        log("📰 Fetching GNews")
 
         gnews_url = (
             f"https://gnews.io/api/v4/search?"
@@ -82,7 +98,10 @@ def fetch_news():
             f"&apikey={GNEWS_API_KEY}"
         )
 
-        response = requests.get(gnews_url)
+        response = requests.get(
+            gnews_url,
+            timeout=30
+        )
 
         data = response.json()
 
@@ -93,8 +112,11 @@ def fetch_news():
                 "description": article.get("description", "")
             })
 
+        log(f"✅ GNews Articles: {len(data.get('articles', []))}")
+
     except Exception as e:
-        print("GNews Error:", e)
+
+        log(f"❌ GNews Error: {e}")
 
     # =================================================
     # NEWS API
@@ -102,16 +124,21 @@ def fetch_news():
 
     try:
 
+        log("📰 Fetching NewsAPI")
+
         newsapi_url = (
             f"https://newsapi.org/v2/everything?"
             f'q=Jaipur OR Rajasthan'
             f"&language=en"
-            f"&pageSize=10"
+            f"&pageSize=25"
             f"&sortBy=publishedAt"
             f"&apiKey={NEWS_API_KEY}"
         )
 
-        response = requests.get(newsapi_url)
+        response = requests.get(
+            newsapi_url,
+            timeout=30
+        )
 
         data = response.json()
 
@@ -122,14 +149,19 @@ def fetch_news():
                 "description": article.get("description", "")
             })
 
+        log(f"✅ NewsAPI Articles: {len(data.get('articles', []))}")
+
     except Exception as e:
-        print("NewsAPI Error:", e)
+
+        log(f"❌ NewsAPI Error: {e}")
 
     # =================================================
-    # GOOGLE NEWS RSS
+    # GOOGLE RSS
     # =================================================
 
     try:
+
+        log("📰 Fetching Google RSS")
 
         rss_url = (
             "https://news.google.com/rss/search?"
@@ -145,14 +177,19 @@ def fetch_news():
                 "description": ""
             })
 
+        log(f"✅ Google RSS Articles: {len(feed.entries[:25])}")
+
     except Exception as e:
-        print("Google RSS Error:", e)
+
+        log(f"❌ Google RSS Error: {e}")
 
     # =================================================
     # DAINIK BHASKAR RSS
     # =================================================
 
     try:
+
+        log("📰 Fetching Dainik Bhaskar RSS")
 
         bhaskar_rss = (
             "https://www.bhaskar.com/rss-v1--category-1998.xml"
@@ -167,12 +204,17 @@ def fetch_news():
                 "description": ""
             })
 
+        log(f"✅ Bhaskar RSS Articles: {len(feed.entries[:25])}")
+
     except Exception as e:
-        print("Bhaskar RSS Error:", e)
+
+        log(f"❌ Bhaskar RSS Error: {e}")
 
     # =================================================
     # REMOVE DUPLICATES
     # =================================================
+
+    log("🧹 Removing Duplicate News")
 
     unique_articles = []
 
@@ -182,7 +224,6 @@ def fetch_news():
 
         cleaned = clean_title(article["title"])
 
-        # SKIP SHORT TITLES
         if len(cleaned) < 20:
             continue
 
@@ -190,7 +231,7 @@ def fetch_news():
 
         for seen in seen_titles:
 
-            if cleaned[:40] == seen[:40]:
+            if cleaned[:55] == seen[:55]:
 
                 duplicate = True
                 break
@@ -200,6 +241,8 @@ def fetch_news():
             seen_titles.add(cleaned)
 
             unique_articles.append(article)
+
+    log(f"✅ Unique Articles: {len(unique_articles)}")
 
     # =================================================
     # SHUFFLE ARTICLES
@@ -215,9 +258,13 @@ def fetch_news():
 
         if not already_posted(article["title"]):
 
+            log(f"📰 Selected News: {article['title']}")
+
             return article
 
-    raise Exception("No New Unique News Found")
+    log("⚠ No New Unique News Found")
+
+    return None
 
 # =====================================================
 # AI CONTENT GENERATION
@@ -225,7 +272,11 @@ def fetch_news():
 
 def generate_content(news):
 
-    prompt = f"""
+    try:
+
+        log("🤖 Generating AI Content")
+
+        prompt = f"""
 News: {news['title']}
 
 Return JSON only.
@@ -252,36 +303,41 @@ Format:
 }}
 """
 
-    response = client.chat.completions.create(
-        model="gpt-4.1-nano",
-        response_format={"type": "json_object"},
-        messages=[
-            {
-                "role": "system",
-                "content": (
-                    "You are Mast Jaipur social media writer. "
-                    "Write short viral Jaipur news captions."
-                )
-            },
-            {
-                "role": "user",
-                "content": prompt
-            }
-        ],
-        max_tokens=220,
-        temperature=0.8
-    )
+        response = client.chat.completions.create(
+            model="gpt-4.1-nano",
+            response_format={"type": "json_object"},
+            messages=[
+                {
+                    "role": "system",
+                    "content": (
+                        "You are Mast Jaipur social media writer. "
+                        "Write short viral Jaipur news captions."
+                    )
+                },
+                {
+                    "role": "user",
+                    "content": prompt
+                }
+            ],
+            max_tokens=220,
+            temperature=0.8
+        )
 
-    content = response.choices[0].message.content
+        content = response.choices[0].message.content
 
-    try:
         result = json.loads(content)
-    except:
-        print("❌ JSON Error")
-        print(content)
-        return None
 
-    return result
+        log("✅ AI Content Generated")
+
+        return result
+
+    except Exception as e:
+
+        log(f"❌ AI Generation Error: {e}")
+
+        traceback.print_exc()
+
+        return None
 
 # =====================================================
 # CREATE IMAGE
@@ -289,62 +345,73 @@ Format:
 
 def create_image(headline):
 
-    image = Image.open("background.jpg").convert("RGB")
+    try:
 
-    width, height = image.size
+        log("🎨 Creating Image")
 
-    draw = ImageDraw.Draw(image)
+        image = Image.open("background.jpg").convert("RGB")
 
-    font = ImageFont.truetype(
-        "Poppins-Bold.ttf",
-        450
-    )
+        width, height = image.size
 
-    wrapped = textwrap.fill(headline, width=16)
+        draw = ImageDraw.Draw(image)
 
-    bbox = draw.multiline_textbbox(
-        (0, 0),
-        wrapped,
-        font=font
-    )
+        font = ImageFont.truetype(
+            "Poppins-Bold.ttf",
+            450
+        )
 
-    text_width = bbox[2] - bbox[0]
-    text_height = bbox[3] - bbox[1]
+        wrapped = textwrap.fill(headline, width=16)
 
-    x = (width - text_width) / 2
-    y = (height - text_height) / 2
+        bbox = draw.multiline_textbbox(
+            (0, 0),
+            wrapped,
+            font=font
+        )
 
-    # SHADOW
-    draw.multiline_text(
-        (x + 3, y + 3),
-        wrapped,
-        font=font,
-        fill="black",
-        align="center"
-    )
+        text_width = bbox[2] - bbox[0]
+        text_height = bbox[3] - bbox[1]
 
-    # MAIN TEXT
-    draw.multiline_text(
-        (x, y),
-        wrapped,
-        font=font,
-        fill="#9A166A",
-        align="center"
-    )
+        x = (width - text_width) / 2
+        y = (height - text_height) / 2
 
-    # BRANDING
-    small_font = ImageFont.truetype(
-        "Poppins-Bold.ttf",
-        35
-    )
+        # SHADOW
+        draw.multiline_text(
+            (x + 3, y + 3),
+            wrapped,
+            font=font,
+            fill="black",
+            align="center"
+        )
 
-    output_path = "final_post.jpg"
+        # MAIN TEXT
+        draw.multiline_text(
+            (x, y),
+            wrapped,
+            font=font,
+            fill="#9A166A",
+            align="center"
+        )
 
-    image.save(output_path)
+        small_font = ImageFont.truetype(
+            "Poppins-Bold.ttf",
+            35
+        )
 
-    print("✅ Image Created")
+        output_path = "final_post.jpg"
 
-    return output_path
+        image.save(output_path)
+
+        log("✅ Image Created")
+
+        return output_path
+
+    except Exception as e:
+
+        log(f"❌ Image Creation Error: {e}")
+
+        traceback.print_exc()
+
+        return None
 
 # =====================================================
 # UPLOAD IMAGE
@@ -352,9 +419,28 @@ def create_image(headline):
 
 def upload_image(path):
 
-    response = cloudinary.uploader.upload(path)
+    try:
 
-    return response["secure_url"]
+        log("☁ Uploading Image To Cloudinary")
+
+        response = cloudinary.uploader.upload(
+            path,
+            timeout=60
+        )
+
+        image_url = response["secure_url"]
+
+        log("✅ Cloudinary Upload Successful")
+
+        return image_url
+
+    except Exception as e:
+
+        log(f"❌ Cloudinary Upload Error: {e}")
+
+        traceback.print_exc()
+
+        return None
 
 # =====================================================
 # INSTAGRAM POST
@@ -362,45 +448,108 @@ def upload_image(path):
 
 def post_instagram(image_url, caption):
 
-    create_url = (
-        f"https://graph.facebook.com/v22.0/"
-        f"{INSTAGRAM_BUSINESS_ID}/media"
-    )
+    try:
 
-    payload = {
-        "image_url": image_url,
-        "caption": caption,
-        "access_token": INSTAGRAM_ACCESS_TOKEN
-    }
+        log("📤 Creating Instagram Media Container")
 
-    response = requests.post(
-        create_url,
-        data=payload
-    )
+        create_url = (
+            f"https://graph.facebook.com/v22.0/"
+            f"{INSTAGRAM_BUSINESS_ID}/media"
+        )
 
-    result = response.json()
+        payload = {
+            "image_url": image_url,
+            "caption": caption,
+            "access_token": INSTAGRAM_ACCESS_TOKEN
+        }
 
-    print(result)
+        response = requests.post(
+            create_url,
+            data=payload,
+            timeout=60
+        )
 
-    creation_id = result["id"]
+        result = response.json()
 
-    publish_url = (
-        f"https://graph.facebook.com/v22.0/"
-        f"{INSTAGRAM_BUSINESS_ID}/media_publish"
-    )
+        log(f"📦 Container Response: {result}")
 
-    publish_payload = {
-        "creation_id": creation_id,
-        "access_token": INSTAGRAM_ACCESS_TOKEN
-    }
+        if "id" not in result:
 
-    publish_response = requests.post(
-        publish_url,
-        data=publish_payload
-    )
+            log("❌ Failed To Create Media Container")
 
-    print("✅ Posted Successfully")
-    print(publish_response.json())
+            return False
+
+        creation_id = result["id"]
+
+        # WAIT FOR PROCESSING
+        log("⏳ Waiting For Instagram Processing")
+
+        time.sleep(20)
+
+        # PUBLISH
+        publish_url = (
+            f"https://graph.facebook.com/v22.0/"
+            f"{INSTAGRAM_BUSINESS_ID}/media_publish"
+        )
+
+        publish_payload = {
+            "creation_id": creation_id,
+            "access_token": INSTAGRAM_ACCESS_TOKEN
+        }
+
+        publish_response = requests.post(
+            publish_url,
+            data=publish_payload,
+            timeout=60
+        )
+
+        publish_result = publish_response.json()
+
+        log(f"🚀 Publish Response: {publish_result}")
+
+        if "id" in publish_result:
+
+            log("✅ Instagram Post Published")
+
+            return True
+
+        # RETRY
+        if (
+            "error" in publish_result
+            and publish_result["error"].get("code") == 9007
+        ):
+
+            log("🔄 Media Not Ready. Retrying In 15 Seconds")
+
+            time.sleep(15)
+
+            retry_response = requests.post(
+                publish_url,
+                data=publish_payload,
+                timeout=60
+            )
+
+            retry_result = retry_response.json()
+
+            log(f"🔁 Retry Response: {retry_result}")
+
+            if "id" in retry_result:
+
+                log("✅ Instagram Post Published After Retry")
+
+                return True
+
+        log("❌ Instagram Publish Failed")
+
+        return False
+
+    except Exception as e:
+
+        log(f"❌ Instagram Error: {e}")
+
+        traceback.print_exc()
+
+        return False
 
 # =====================================================
 # DUPLICATE CHECK
@@ -408,20 +557,28 @@ def post_instagram(image_url, caption):
 
 def already_posted(title):
 
-    if not os.path.exists("posted_news.txt"):
+    try:
+
+        if not os.path.exists("posted_news.txt"):
+            return False
+
+        with open("posted_news.txt", "r") as file:
+            posted = file.read().splitlines()
+
+        cleaned = clean_title(title)
+
+        posted_cleaned = [
+            clean_title(p)
+            for p in posted
+        ]
+
+        return cleaned in posted_cleaned
+
+    except Exception as e:
+
+        log(f"❌ Duplicate Check Error: {e}")
+
         return False
-
-    with open("posted_news.txt", "r") as file:
-        posted = file.read().splitlines()
-
-    cleaned = clean_title(title)
-
-    posted_cleaned = [
-        clean_title(p)
-        for p in posted
-    ]
-
-    return cleaned in posted_cleaned
 
 # =====================================================
 # SAVE POSTED NEWS
@@ -429,8 +586,17 @@ def already_posted(title):
 
 def save_posted_news(title):
 
-    with open("posted_news.txt", "a") as file:
-        file.write(title + "\n")
+    try:
+
+        with open("posted_news.txt", "a") as file:
+
+            file.write(title + "\n")
+
+        log("✅ News Saved To Cache")
+
+    except Exception as e:
+
+        log(f"❌ Save Cache Error: {e}")
 
 # =====================================================
 # MAIN AUTOMATION
@@ -438,71 +604,97 @@ def save_posted_news(title):
 
 def run_automation():
 
-    print("🚀 Starting Automation")
+    try:
 
-    # FETCH NEWS
-    news = fetch_news()
+        log("🚀 Starting Automation")
 
-    print("✅ News Fetched")
+        # FETCH NEWS
+        news = fetch_news()
 
-    # CHECK DUPLICATE
-    if already_posted(news["title"]):
+        if not news:
 
-        print("⚠ Already Posted")
-        return
+            log("⚠ No News Available")
 
-    # AI CONTENT
-    ai_content = generate_content(news)
+            return
 
-    if not ai_content:
-        return
+        # DUPLICATE CHECK
+        if already_posted(news["title"]):
 
-    headline = ai_content["headline"]
+            log("⚠ Duplicate News Skipped")
 
-    hashtags = ai_content.get("hashtags", "")
-    keywords = ai_content.get("keywords", "")
+            return
 
-    # CONVERT LIST TO STRING
-    if isinstance(hashtags, list):
-        hashtags = " ".join(
-            tag if tag.startswith("#") else f"#{tag}"
-            for tag in hashtags
+        # AI CONTENT
+        ai_content = generate_content(news)
+
+        if not ai_content:
+
+            log("❌ AI Content Failed")
+
+            return
+
+        headline = ai_content["headline"]
+
+        hashtags = ai_content.get("hashtags", "")
+        keywords = ai_content.get("keywords", "")
+
+        if isinstance(hashtags, list):
+
+            hashtags = " ".join(
+                tag if tag.startswith("#")
+                else f"#{tag}"
+                for tag in hashtags
+            )
+
+        if isinstance(keywords, list):
+
+            keywords = ", ".join(keywords)
+
+        caption = (
+            ai_content["caption"]
+            + "\n\n"
+            + hashtags
+            + "\n\n["
+            + keywords
+            + "]"
         )
 
-    if isinstance(keywords, list):
-        keywords = ", ".join(keywords)
+        log(f"📝 Headline: {headline}")
 
-    caption = (
-        ai_content["caption"]
-        + "\n\n"
-        + hashtags
-        + "\n\n["
-        + keywords
-        + "]"
-    )
+        # CREATE IMAGE
+        image_path = create_image(headline)
 
-    print("✅ AI Content Generated")
+        if not image_path:
 
-    print("Headline:")
-    print(headline)
+            return
 
-    # CREATE IMAGE
-    image_path = create_image(headline)
+        # UPLOAD IMAGE
+        image_url = upload_image(image_path)
 
-    # UPLOAD IMAGE
-    image_url = upload_image(image_path)
+        if not image_url:
 
-    print("✅ Image Uploaded")
+            return
 
-    # POST INSTAGRAM
-    post_instagram(image_url, caption)
+        # POST INSTAGRAM
+        success = post_instagram(
+            image_url,
+            caption
+        )
 
-  
+        # SAVE ONLY AFTER SUCCESS
+        if success:
 
-    # SAVE POSTED NEWS
-    save_posted_news(news["title"])
+            save_posted_news(news["title"])
 
-    print("✅ News Saved")
+        else:
+
+            log("❌ Post Failed — Cache Not Saved")
+
+    except Exception as e:
+
+        log(f"❌ Automation Crash: {e}")
+
+        traceback.print_exc()
 
 # =====================================================
 # RUN
