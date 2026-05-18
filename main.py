@@ -73,6 +73,74 @@ def clean_title(title):
     return title.strip()
 
 # =====================================================
+# FILTER BAD / OLD NEWS
+# =====================================================
+
+def is_valid_news(title):
+
+    title_lower = title.lower()
+
+    # ============================================
+    # BLOCK NEGATIVE / DEATH NEWS
+    # ============================================
+
+    blocked_keywords = [
+
+        "death",
+        "dies",
+        "dead",
+        "killed",
+        "murder",
+        "suicide",
+        "accident",
+        "crash",
+        "funeral",
+        "obituary",
+        "rape",
+        "assault",
+        "body found",
+        "terror",
+        "attack",
+        "violence",
+        "fire death",
+        "shot dead",
+        "hospital death",
+        "custody death",
+        "earthquake deaths",
+        "flood deaths"
+    ]
+
+    for keyword in blocked_keywords:
+
+        if keyword in title_lower:
+
+            log(f"🚫 Blocked Negative News: {title}")
+
+            return False
+
+    # ============================================
+    # BLOCK OLD YEARS
+    # ============================================
+
+    old_years = [
+        "2020",
+        "2021",
+        "2022",
+        "2023",
+        "2024"
+    ]
+
+    for year in old_years:
+
+        if year in title_lower:
+
+            log(f"🚫 Blocked Old News: {title}")
+
+            return False
+
+    return True
+
+# =====================================================
 # FETCH NEWS
 # =====================================================
 
@@ -165,7 +233,7 @@ def fetch_news():
 
         rss_url = (
             "https://news.google.com/rss/search?"
-            "q=Jaipur+OR+Rajasthan+crime+OR+business+OR+events+OR+tourism+OR+viral&hl=en-IN&gl=IN&ceid=IN:en"
+            "q=Jaipur+Rajasthan+business+events+tourism+government+sports+festival+startup+weather+metro&hl=en-IN&gl=IN&ceid=IN:en"
         )
 
         feed = feedparser.parse(rss_url)
@@ -174,7 +242,7 @@ def fetch_news():
 
             articles.append({
                 "title": entry.title,
-                "description": ""
+                "description": getattr(entry, "summary", "")
             })
 
         log(f"✅ Google RSS Articles: {len(feed.entries[:25])}")
@@ -201,7 +269,7 @@ def fetch_news():
 
             articles.append({
                 "title": entry.title,
-                "description": ""
+                "description": getattr(entry, "summary", "")
             })
 
         log(f"✅ Bhaskar RSS Articles: {len(feed.entries[:25])}")
@@ -256,7 +324,10 @@ def fetch_news():
 
     for article in unique_articles:
 
-        if not already_posted(article["title"]):
+        if (
+            is_valid_news(article["title"])
+            and not already_posted(article["title"])
+        ):
 
             log(f"📰 Selected News: {article['title']}")
 
@@ -277,7 +348,9 @@ def generate_content(news):
         log("🤖 Generating AI Content")
 
         prompt = f"""
-News: {news['title']}
+News Title: {news['title']}
+
+News Description: {news.get('description', '')}
 
 Return ONLY valid JSON.
 
@@ -297,6 +370,11 @@ Rules:
 - Space separated hashtags
 - Comma separated keywords
 - Short attractive headline
+- Write ONLY about current/latest news
+- Never mention old years like 2024
+- Never invent facts
+- Never create fake information
+- If information is limited, keep caption factual
 - NO double quotes inside values
 - NO line breaks inside JSON values
 
@@ -318,6 +396,7 @@ Format:
                     "content": (
                         "You are Mast Jaipur news writer. "
                         "Write detailed viral Instagram news captions in Hinglish. "
+                        "Explain news clearly and factually. "
                         "Return ONLY valid JSON."
                     )
                 },
@@ -346,10 +425,8 @@ Format:
 
         content = re.sub(r'\s+', ' ', content)
 
-        # REMOVE INVALID CHARS
         content = re.sub(r'[\x00-\x1F\x7F]', '', content)
 
-        # FIX SMART QUOTES
         content = (
             content
             .replace('“', '"')
@@ -372,7 +449,6 @@ Format:
 
             log("⚠ First JSON Parse Failed")
 
-            # REMOVE INVALID QUOTES
             fixed_content = (
                 content
                 .replace('\\"', '"')
@@ -399,10 +475,6 @@ Format:
                 log(f"❌ Missing JSON Key: {key}")
 
                 return None
-
-        # ============================================
-        # CLEAN VALUES
-        # ============================================
 
         result["headline"] = str(
             result["headline"]
@@ -448,6 +520,7 @@ def create_image(headline):
 
         draw = ImageDraw.Draw(image)
 
+        # DO NOT CHANGE FONT SIZE
         font = ImageFont.truetype(
             "Poppins-Bold.ttf",
             450
@@ -483,11 +556,6 @@ def create_image(headline):
             font=font,
             fill="#9A166A",
             align="center"
-        )
-
-        small_font = ImageFont.truetype(
-            "Poppins-Bold.ttf",
-            35
         )
 
         output_path = "final_post.jpg"
@@ -743,6 +811,7 @@ def run_automation():
 
             keywords = ", ".join(keywords)
 
+        # KEEP SAME CAPTION STRUCTURE
         caption = (
             ai_content["caption"]
             + "\n\n"
@@ -758,14 +827,12 @@ def run_automation():
         image_path = create_image(headline)
 
         if not image_path:
-
             return
 
         # UPLOAD IMAGE
         image_url = upload_image(image_path)
 
         if not image_url:
-
             return
 
         # POST INSTAGRAM
