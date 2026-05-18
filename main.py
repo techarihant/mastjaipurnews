@@ -286,7 +286,12 @@ Rules:
 - Viral Instagram style
 - SEO optimized
 - Jaipur audience
-- Max 35 word caption
+- Detailed informative caption
+- Explain what happened in simple words
+- Include why the news matters
+- Caption should feel like real news reporting
+- Use short readable sentences
+- 70-120 words
 - Caption WITHOUT hashtags
 - 8 hashtags only
 - Use real Instagram hashtags starting with #
@@ -310,8 +315,10 @@ Format:
                 {
                     "role": "system",
                     "content": (
-                        "You are Mast Jaipur social media writer. "
-                        "Write short viral Jaipur news captions."
+                        "You are Mast Jaipur news writer. "
+                        "Write detailed viral Instagram news captions in Hinglish. "
+                        "Explain the news clearly in a simple engaging way. "
+                        "Make captions informative and SEO optimized."
                     )
                 },
                 {
