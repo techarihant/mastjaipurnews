@@ -279,7 +279,7 @@ def generate_content(news):
         prompt = f"""
 News: {news['title']}
 
-Return JSON only.
+Return ONLY valid JSON.
 
 Rules:
 - Hinglish
@@ -287,24 +287,25 @@ Rules:
 - SEO optimized
 - Jaipur audience
 - Detailed informative caption
-- Explain what happened in simple words
+- Explain what happened clearly
 - Include why the news matters
-- Caption should feel like real news reporting
-- Use short readable sentences
-- 70-120 words
+- Human readable language
+- 70-120 word caption
 - Caption WITHOUT hashtags
 - 8 hashtags only
 - Use real Instagram hashtags starting with #
 - Space separated hashtags
 - Comma separated keywords
 - Short attractive headline
+- NO double quotes inside values
+- NO line breaks inside JSON values
 
 Format:
 {{
-"headline":"",
-"caption":"",
-"hashtags":"#tag1 #tag2 #tag3",
-"keywords":""
+    "headline": "",
+    "caption": "",
+    "hashtags": "",
+    "keywords": ""
 }}
 """
 
@@ -317,8 +318,7 @@ Format:
                     "content": (
                         "You are Mast Jaipur news writer. "
                         "Write detailed viral Instagram news captions in Hinglish. "
-                        "Explain the news clearly in a simple engaging way. "
-                        "Make captions informative and SEO optimized."
+                        "Return ONLY valid JSON."
                     )
                 },
                 {
@@ -326,15 +326,101 @@ Format:
                     "content": prompt
                 }
             ],
-            max_tokens=220,
-            temperature=0.8
+            max_tokens=350,
+            temperature=0.7
         )
 
         content = response.choices[0].message.content
 
-        result = json.loads(content)
+        log("📦 Raw AI Response Received")
 
-        log("✅ AI Content Generated")
+        # ============================================
+        # CLEAN RESPONSE
+        # ============================================
+
+        content = content.strip()
+
+        content = content.replace("\n", " ")
+
+        content = content.replace("\r", " ")
+
+        content = re.sub(r'\s+', ' ', content)
+
+        # REMOVE INVALID CHARS
+        content = re.sub(r'[\x00-\x1F\x7F]', '', content)
+
+        # FIX SMART QUOTES
+        content = (
+            content
+            .replace('“', '"')
+            .replace('”', '"')
+            .replace("‘", "'")
+            .replace("’", "'")
+        )
+
+        log("🧹 AI Response Cleaned")
+
+        # ============================================
+        # JSON PARSE
+        # ============================================
+
+        try:
+
+            result = json.loads(content)
+
+        except Exception:
+
+            log("⚠ First JSON Parse Failed")
+
+            # REMOVE INVALID QUOTES
+            fixed_content = (
+                content
+                .replace('\\"', '"')
+                .replace("'", "")
+            )
+
+            result = json.loads(fixed_content)
+
+        # ============================================
+        # VALIDATE JSON
+        # ============================================
+
+        required_keys = [
+            "headline",
+            "caption",
+            "hashtags",
+            "keywords"
+        ]
+
+        for key in required_keys:
+
+            if key not in result:
+
+                log(f"❌ Missing JSON Key: {key}")
+
+                return None
+
+        # ============================================
+        # CLEAN VALUES
+        # ============================================
+
+        result["headline"] = str(
+            result["headline"]
+        ).strip()
+
+        result["caption"] = str(
+            result["caption"]
+        ).strip()
+
+        result["hashtags"] = str(
+            result["hashtags"]
+        ).strip()
+
+        result["keywords"] = str(
+            result["keywords"]
+        ).strip()
+
+        log("✅ AI Content Generated Successfully")
 
         return result
 
