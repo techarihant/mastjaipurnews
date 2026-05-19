@@ -80,10 +80,6 @@ def is_valid_news(title):
 
     title_lower = title.lower()
 
-    # ============================================
-    # BLOCK NEGATIVE / DEATH NEWS
-    # ============================================
-
     blocked_keywords = [
 
         "death",
@@ -107,20 +103,22 @@ def is_valid_news(title):
         "hospital death",
         "custody death",
         "earthquake deaths",
-        "flood deaths"
+        "flood deaths",
+        "old",
+        "archive",
+        "throwback",
+        "anniversary",
+        "remembering",
+        "historic"
     ]
 
     for keyword in blocked_keywords:
 
         if keyword in title_lower:
 
-            log(f"🚫 Blocked Negative News: {title}")
+            log(f"🚫 Blocked News: {title}")
 
             return False
-
-    # ============================================
-    # BLOCK OLD YEARS
-    # ============================================
 
     old_years = [
         "2020",
@@ -134,7 +132,7 @@ def is_valid_news(title):
 
         if year in title_lower:
 
-            log(f"🚫 Blocked Old News: {title}")
+            log(f"🚫 Old News Skipped: {title}")
 
             return False
 
@@ -146,7 +144,7 @@ def is_valid_news(title):
 
 def fetch_news():
 
-    log("🌍 Fetching News From Multiple Sources")
+    log("🌍 Fetching Jaipur News")
 
     articles = []
 
@@ -160,7 +158,7 @@ def fetch_news():
 
         gnews_url = (
             f"https://gnews.io/api/v4/search?"
-            f'q=Jaipur OR Rajasthan'
+            f'q=Jaipur'
             f"&lang=en"
             f"&max=25"
             f"&apikey={GNEWS_API_KEY}"
@@ -192,32 +190,34 @@ def fetch_news():
 
     try:
 
-        log("📰 Fetching NewsAPI")
+        if NEWS_API_KEY:
 
-        newsapi_url = (
-            f"https://newsapi.org/v2/everything?"
-            f'q=Jaipur OR Rajasthan'
-            f"&language=en"
-            f"&pageSize=25"
-            f"&sortBy=publishedAt"
-            f"&apiKey={NEWS_API_KEY}"
-        )
+            log("📰 Fetching NewsAPI")
 
-        response = requests.get(
-            newsapi_url,
-            timeout=30
-        )
+            newsapi_url = (
+                f"https://newsapi.org/v2/everything?"
+                f'q=Jaipur'
+                f"&language=en"
+                f"&pageSize=25"
+                f"&sortBy=publishedAt"
+                f"&apiKey={NEWS_API_KEY}"
+            )
 
-        data = response.json()
+            response = requests.get(
+                newsapi_url,
+                timeout=30
+            )
 
-        for article in data.get("articles", []):
+            data = response.json()
 
-            articles.append({
-                "title": article["title"],
-                "description": article.get("description", "")
-            })
+            for article in data.get("articles", []):
 
-        log(f"✅ NewsAPI Articles: {len(data.get('articles', []))}")
+                articles.append({
+                    "title": article["title"],
+                    "description": article.get("description", "")
+                })
+
+            log(f"✅ NewsAPI Articles: {len(data.get('articles', []))}")
 
     except Exception as e:
 
@@ -233,7 +233,7 @@ def fetch_news():
 
         rss_url = (
             "https://news.google.com/rss/search?"
-            "q=Jaipur+Rajasthan+business+events+tourism+government+sports+festival+startup+weather+metro&hl=en-IN&gl=IN&ceid=IN:en"
+            "q=Jaipur+metro+traffic+business+events+tourism+government+startup+viral+weather+sports&hl=en-IN&gl=IN&ceid=IN:en"
         )
 
         feed = feedparser.parse(rss_url)
@@ -313,13 +313,13 @@ def fetch_news():
     log(f"✅ Unique Articles: {len(unique_articles)}")
 
     # =================================================
-    # SHUFFLE ARTICLES
+    # SHUFFLE NEWS
     # =================================================
 
     random.shuffle(unique_articles)
 
     # =================================================
-    # FIND NON-POSTED ARTICLE
+    # FIND VALID NEWS
     # =================================================
 
     for article in unique_articles:
@@ -345,7 +345,7 @@ def generate_content(news):
 
     try:
 
-        log("🤖 Generating AI Content")
+        log("🤖 Generating Viral Jaipur Content")
 
         prompt = f"""
 News Title: {news['title']}
@@ -357,11 +357,18 @@ Return ONLY valid JSON.
 Rules:
 - Hinglish
 - Viral Instagram style
-- SEO optimized
-- Jaipur audience
+- Jaipur focused
+- Headline must feel BREAKING and scroll-stopping
+- Headline should create curiosity
+- Use powerful short words
+- Make headline emotional or shocking
+- Headlines should feel like top Jaipur Instagram news pages
+- Avoid boring newspaper-style headlines
+- Keep headline under 8 words
+- Add Jaipur relevance in headline whenever possible
 - Detailed informative caption
 - Explain what happened clearly
-- Include why the news matters
+- Explain why Jaipur people should care
 - Human readable language
 - 70-120 word caption
 - Caption WITHOUT hashtags
@@ -369,7 +376,6 @@ Rules:
 - Use real Instagram hashtags starting with #
 - Space separated hashtags
 - Comma separated keywords
-- Short attractive headline
 - Write ONLY about current/latest news
 - Never mention old years like 2024
 - Never invent facts
@@ -394,9 +400,12 @@ Format:
                 {
                     "role": "system",
                     "content": (
-                        "You are Mast Jaipur news writer. "
-                        "Write detailed viral Instagram news captions in Hinglish. "
-                        "Explain news clearly and factually. "
+                        "You are the head viral content writer for Mast Jaipur, "
+                        "a fast-growing Jaipur Instagram news page. "
+                        "Your job is to create highly engaging BREAKING-style headlines "
+                        "that stop users from scrolling instantly. "
+                        "Headlines must feel modern, emotional, viral, and Jaipur-focused. "
+                        "Captions should explain the news clearly in Hinglish. "
                         "Return ONLY valid JSON."
                     )
                 },
@@ -406,16 +415,12 @@ Format:
                 }
             ],
             max_tokens=350,
-            temperature=0.7
+            temperature=0.9
         )
 
         content = response.choices[0].message.content
 
-        log("📦 Raw AI Response Received")
-
-        # ============================================
-        # CLEAN RESPONSE
-        # ============================================
+        log("📦 AI Response Received")
 
         content = content.strip()
 
@@ -437,10 +442,6 @@ Format:
 
         log("🧹 AI Response Cleaned")
 
-        # ============================================
-        # JSON PARSE
-        # ============================================
-
         try:
 
             result = json.loads(content)
@@ -457,10 +458,6 @@ Format:
 
             result = json.loads(fixed_content)
 
-        # ============================================
-        # VALIDATE JSON
-        # ============================================
-
         required_keys = [
             "headline",
             "caption",
@@ -472,7 +469,7 @@ Format:
 
             if key not in result:
 
-                log(f"❌ Missing JSON Key: {key}")
+                log(f"❌ Missing Key: {key}")
 
                 return None
 
@@ -492,7 +489,7 @@ Format:
             result["keywords"]
         ).strip()
 
-        log("✅ AI Content Generated Successfully")
+        log("✅ AI Content Generated")
 
         return result
 
@@ -642,12 +639,11 @@ def post_instagram(image_url, caption):
 
         creation_id = result["id"]
 
-        # WAIT FOR PROCESSING
+        # WAIT FOR META PROCESSING
         log("⏳ Waiting For Instagram Processing")
 
         time.sleep(20)
 
-        # PUBLISH
         publish_url = (
             f"https://graph.facebook.com/v22.0/"
             f"{INSTAGRAM_BUSINESS_ID}/media_publish"
@@ -674,13 +670,12 @@ def post_instagram(image_url, caption):
 
             return True
 
-        # RETRY
         if (
             "error" in publish_result
             and publish_result["error"].get("code") == 9007
         ):
 
-            log("🔄 Media Not Ready. Retrying In 15 Seconds")
+            log("🔄 Media Not Ready. Retrying")
 
             time.sleep(15)
 
@@ -696,7 +691,7 @@ def post_instagram(image_url, caption):
 
             if "id" in retry_result:
 
-                log("✅ Instagram Post Published After Retry")
+                log("✅ Instagram Published After Retry")
 
                 return True
 
@@ -767,9 +762,8 @@ def run_automation():
 
     try:
 
-        log("🚀 Starting Automation")
+        log("🚀 Starting Jaipur Automation")
 
-        # FETCH NEWS
         news = fetch_news()
 
         if not news:
@@ -778,14 +772,12 @@ def run_automation():
 
             return
 
-        # DUPLICATE CHECK
         if already_posted(news["title"]):
 
             log("⚠ Duplicate News Skipped")
 
             return
 
-        # AI CONTENT
         ai_content = generate_content(news)
 
         if not ai_content:
@@ -811,7 +803,6 @@ def run_automation():
 
             keywords = ", ".join(keywords)
 
-        # KEEP SAME CAPTION STRUCTURE
         caption = (
             ai_content["caption"]
             + "\n\n"
@@ -821,34 +812,30 @@ def run_automation():
             + "]"
         )
 
-        log(f"📝 Headline: {headline}")
+        log(f"🔥 Headline: {headline}")
 
-        # CREATE IMAGE
         image_path = create_image(headline)
 
         if not image_path:
             return
 
-        # UPLOAD IMAGE
         image_url = upload_image(image_path)
 
         if not image_url:
             return
 
-        # POST INSTAGRAM
         success = post_instagram(
             image_url,
             caption
         )
 
-        # SAVE ONLY AFTER SUCCESS
         if success:
 
             save_posted_news(news["title"])
 
         else:
 
-            log("❌ Post Failed — Cache Not Saved")
+            log("❌ Post Failed")
 
     except Exception as e:
 
