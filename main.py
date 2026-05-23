@@ -312,10 +312,6 @@ def fetch_news():
 
     log(f"✅ Unique Articles: {len(unique_articles)}")
 
-    # =================================================
-    # SHUFFLE NEWS
-    # =================================================
-
     random.shuffle(unique_articles)
 
     # =================================================
@@ -345,31 +341,33 @@ def generate_content(news):
 
     try:
 
-        log("🤖 Generating Viral Jaipur Content")
+        log("🤖 Generating Professional Jaipur Content")
 
         prompt = f"""
 News Title: {news['title']}
 
 News Description: {news.get('description', '')}
 
+Write the response in the same language as the news title.
+
 Return ONLY valid JSON.
 
 Rules:
-- Hinglish
-- Viral Instagram style
+- Write in ONLY ONE language
+- Use either pure Hindi OR pure English
+- Never mix Hindi and English in the same sentence
+- Use proper grammar and spelling
+- Language should feel professional and natural
 - Jaipur focused
-- Headline must feel BREAKING and scroll-stopping
+- Headline must feel BREAKING and attention-grabbing
 - Headline should create curiosity
-- Use powerful short words
-- Make headline emotional or shocking
-- Headlines should feel like top Jaipur Instagram news pages
-- Avoid boring newspaper-style headlines
+- Avoid clickbait or fake drama
 - Keep headline under 8 words
-- Add Jaipur relevance in headline whenever possible
+- Headline should look like a professional Jaipur news page
 - Detailed informative caption
 - Explain what happened clearly
 - Explain why Jaipur people should care
-- Human readable language
+- Use clean readable sentences
 - 70-120 word caption
 - Caption WITHOUT hashtags
 - 8 hashtags only
@@ -381,6 +379,9 @@ Rules:
 - Never invent facts
 - Never create fake information
 - If information is limited, keep caption factual
+- Use simple news-style language
+- NO emojis inside caption
+- NO Hinglish
 - NO double quotes inside values
 - NO line breaks inside JSON values
 
@@ -400,12 +401,12 @@ Format:
                 {
                     "role": "system",
                     "content": (
-                        "You are the head viral content writer for Mast Jaipur, "
-                        "a fast-growing Jaipur Instagram news page. "
-                        "Your job is to create highly engaging BREAKING-style headlines "
-                        "that stop users from scrolling instantly. "
-                        "Headlines must feel modern, emotional, viral, and Jaipur-focused. "
-                        "Captions should explain the news clearly in Hinglish. "
+                        "You are a professional Jaipur news editor for Mast Jaipur. "
+                        "Write clean, grammatically correct Instagram news content. "
+                        "Use either proper Hindi or proper English only. "
+                        "Never mix languages in the same sentence. "
+                        "Headlines should feel modern, sharp, and professional. "
+                        "Captions should explain the news clearly and factually. "
                         "Return ONLY valid JSON."
                     )
                 },
@@ -415,7 +416,7 @@ Format:
                 }
             ],
             max_tokens=350,
-            temperature=0.9
+            temperature=0.8
         )
 
         content = response.choices[0].message.content
@@ -517,7 +518,6 @@ def create_image(headline):
 
         draw = ImageDraw.Draw(image)
 
-        # DO NOT CHANGE FONT SIZE
         font = ImageFont.truetype(
             "Poppins-Bold.ttf",
             450
@@ -537,7 +537,6 @@ def create_image(headline):
         x = (width - text_width) / 2
         y = (height - text_height) / 2
 
-        # SHADOW
         draw.multiline_text(
             (x + 3, y + 3),
             wrapped,
@@ -546,7 +545,6 @@ def create_image(headline):
             align="center"
         )
 
-        # MAIN TEXT
         draw.multiline_text(
             (x, y),
             wrapped,
@@ -639,7 +637,6 @@ def post_instagram(image_url, caption):
 
         creation_id = result["id"]
 
-        # WAIT FOR META PROCESSING
         log("⏳ Waiting For Instagram Processing")
 
         time.sleep(20)
